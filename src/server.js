@@ -60,6 +60,6 @@ app.listen(port, '0.0.0.0', () => {
     : '🔧 Demo (キーワードマッチ)';
 
   console.log(`\n🟢 GoyouLink Accounting MVP`);
-  console.log(`📍 http://localhost:${port}`);
+  console.log(`📍 listening on 0.0.0.0:${port}`);
   console.log(`${aiMode}\n`);
 });
