@@ -1378,11 +1378,47 @@
           }
         }, []);
 
+        // ─── 瀏覽器歷史同步（上一頁/下一頁ボタン対応）─────────────
+        useEffect(() => {
+          const handlePopState = (e) => {
+            // 戻る/進むボタンが押された時、state を復元
+            setSelectedClient(e.state?.client || null);
+          };
+          window.addEventListener('popstate', handlePopState);
+
+          // 初回ロード時、URL から復元（直接リンク対応）
+          const hash = window.location.hash;
+          if (hash.startsWith('#client=')) {
+            const clientId = hash.replace('#client=', '');
+            // クライアント一覧から該当を取得（user 認証済みのみ）
+            const token = localStorage.getItem('token');
+            if (token) {
+              api('/clients').then((d) => {
+                const c = d.clients.find((c) => c.id === clientId);
+                if (c) setSelectedClient(c);
+              }).catch(() => {});
+            }
+          }
+
+          return () => window.removeEventListener('popstate', handlePopState);
+        }, []);
+
+        function openClient(client) {
+          setSelectedClient(client);
+          window.history.pushState({ client }, '', `#client=${client.id}`);
+        }
+
+        function closeClient() {
+          setSelectedClient(null);
+          window.history.pushState({}, '', window.location.pathname);
+        }
+
         function logout() {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           setUser(null);
           setSelectedClient(null);
+          window.history.pushState({}, '', window.location.pathname);
         }
 
         if (!user) return <AuthScreen onLogin={setUser} />;
@@ -1391,11 +1427,11 @@
             <ClientDetail
               client={selectedClient}
               user={user}
-              onBack={() => setSelectedClient(null)}
+              onBack={closeClient}
               onLogout={logout}
             />
           );
-        return <Dashboard user={user} onSelectClient={setSelectedClient} onLogout={logout} />;
+        return <Dashboard user={user} onSelectClient={openClient} onLogout={logout} />;
       }
 
       ReactDOM.createRoot(document.getElementById('root')).render(<App />);
