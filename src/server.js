@@ -9,6 +9,7 @@ import clientRoutes from './routes/clients.js';
 import journalRoutes from './routes/journal.js';
 import reportRoutes from './routes/reports.js';
 import bankRoutes from './routes/bank.js';
+import documentRoutes from './routes/documents.js';
 import { isEmbeddingEnabled } from './services/embedding.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -26,6 +27,7 @@ app.use('/api/clients', clientRoutes);
 app.use('/api/journal-entries', journalRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/bank', bankRoutes);
+app.use('/api/documents', documentRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -52,7 +54,7 @@ app.use((err, req, res, next) => {
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port, '0.0.0.0', () => {
+app.listen(port, () => {
   const aiMode = process.env.ANTHROPIC_API_KEY
     ? isEmbeddingEnabled()
       ? '🧠 Claude + RAG (pgvector)'
@@ -60,6 +62,6 @@ app.listen(port, '0.0.0.0', () => {
     : '🔧 Demo (キーワードマッチ)';
 
   console.log(`\n🟢 GoyouLink Accounting MVP`);
-  console.log(`📍 listening on 0.0.0.0:${port}`);
+  console.log(`📍 http://localhost:${port}`);
   console.log(`${aiMode}\n`);
 });

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>GoyouLink - AI 記帳助手</title>
+    <title>GoyouLink - 申告ワークフロー OS</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -429,7 +429,7 @@
         return (
           <div className="auth-screen">
             <h1>GoyouLink</h1>
-            <div className="subtitle">AI 記帳助手 for 稅理士事務所</div>
+            <div className="subtitle">申告ワークフロー OS for 税理士事務所</div>
             <div className="auth-tabs">
               <button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>
                 ログイン
@@ -615,10 +615,52 @@
       }
 
       // ====================================================================
-      // Client detail
+      // Client detail - v2 workflow OS
       // ====================================================================
       function ClientDetail({ client, user, onBack, onLogout }) {
-        const [tab, setTab] = useState('journal');
+        const [tab, setTab] = useState('requests');
+        const [periods, setPeriods] = useState([]);
+        const [selectedPeriod, setSelectedPeriod] = useState(null);
+
+        const loadPeriods = useCallback(async () => {
+          const data = await api(`/documents/periods?client_id=${client.id}`);
+          setPeriods(data.periods);
+          // 預設選最新年度（若有）
+          if (data.periods.length > 0 && !selectedPeriod) {
+            setSelectedPeriod(data.periods[0]);
+          }
+        }, [client.id, selectedPeriod]);
+
+        useEffect(() => {
+          loadPeriods();
+        }, [client.id]);
+
+        async function createPeriod() {
+          const year = prompt('会計年度（例：2026）を入力', new Date().getFullYear());
+          if (!year) return;
+          try {
+            await api('/documents/periods', {
+              method: 'POST',
+              body: JSON.stringify({
+                client_id: client.id,
+                fiscal_year: Number(year),
+              }),
+            });
+            await loadPeriods();
+          } catch (e) {
+            alert(e.message);
+          }
+        }
+
+        const statusLabel = {
+          open: '開始',
+          in_progress: '書類回収中',
+          review: '税理士レビュー中',
+          client_review: '客户確認中',
+          confirmed: '確認済み（lock）',
+          filed: '申告完了',
+          archived: 'アーカイブ',
+        };
 
         return (
           <>
@@ -638,30 +680,488 @@
               <h2 style={{ fontSize: 22, color: '#1a365d', marginBottom: 4 }}>
                 {client.company_name}
               </h2>
-              <div style={{ fontSize: 12, color: '#718096', marginBottom: 24 }}>
+              <div style={{ fontSize: 12, color: '#718096', marginBottom: 16 }}>
                 {client.industry || '業種未設定'}
               </div>
 
-              <div className="tabs">
-                <button className={tab === 'journal' ? 'active' : ''} onClick={() => setTab('journal')}>
-                  仕訳
-                </button>
-                <button className={tab === 'bank' ? 'active' : ''} onClick={() => setTab('bank')}>
-                  銀行明細
-                </button>
-                <button
-                  className={tab === 'trial' ? 'active' : ''}
-                  onClick={() => setTab('trial')}
-                >
-                  試算表
+              {/* 年度選擇器 */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 12,
+                  alignItems: 'center',
+                  marginBottom: 20,
+                  background: 'white',
+                  padding: 12,
+                  borderRadius: 6,
+                  border: '1px solid #e2e8f0',
+                }}
+              >
+                <span style={{ fontSize: 12, color: '#4a5568', fontWeight: 600 }}>会計年度：</span>
+                {periods.length === 0 ? (
+                  <span style={{ fontSize: 13, color: '#a0aec0' }}>年度未作成</span>
+                ) : (
+                  <select
+                    value={selectedPeriod?.id || ''}
+                    onChange={(e) => {
+                      const p = periods.find((p) => p.id === e.target.value);
+                      setSelectedPeriod(p);
+                    }}
+                    style={{ width: 'auto', minWidth: 200 }}
+                  >
+                    {periods.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.fiscal_year} 年度（{statusLabel[p.status]}）
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button className="btn btn-sm btn-secondary" onClick={createPeriod}>
+                  + 新規年度
                 </button>
               </div>
 
-              {tab === 'journal' && <JournalTab client={client} />}
-              {tab === 'bank' && <BankTab client={client} />}
-              {tab === 'trial' && <TrialBalanceTab client={client} />}
+              <div className="tabs">
+                <button
+                  className={tab === 'requests' ? 'active' : ''}
+                  onClick={() => setTab('requests')}
+                >
+                  📋 書類リクエスト
+                </button>
+                <button
+                  className={tab === 'status' ? 'active' : ''}
+                  onClick={() => setTab('status')}
+                >
+                  📊 提出状況
+                </button>
+                <button
+                  className={tab === 'archive' ? 'active' : ''}
+                  onClick={() => setTab('archive')}
+                >
+                  📁 過年度
+                </button>
+              </div>
+
+              {tab === 'requests' && (
+                <DocumentRequestsTab client={client} period={selectedPeriod} />
+              )}
+              {tab === 'status' && <RequestStatusTab client={client} period={selectedPeriod} />}
+              {tab === 'archive' && <ArchiveTab periods={periods} />}
             </div>
           </>
+        );
+      }
+
+      // ====================================================================
+      // 書類リクエスト Tab - 範本一覧から選択
+      // ====================================================================
+      function DocumentRequestsTab({ client, period }) {
+        const [categories, setCategories] = useState([]);
+        const [requests, setRequests] = useState([]);
+        const [expanded, setExpanded] = useState({});
+        const [saving, setSaving] = useState(false);
+
+        const load = useCallback(async () => {
+          const [tplData, reqData] = await Promise.all([
+            api('/documents/templates'),
+            period
+              ? api(`/documents/requests?client_id=${client.id}&period_id=${period.id}`)
+              : api(`/documents/requests?client_id=${client.id}`),
+          ]);
+          setCategories(tplData.categories);
+          setRequests(reqData.requests);
+        }, [client.id, period?.id]);
+
+        useEffect(() => {
+          load();
+        }, [load]);
+
+        const requestedTemplateIds = new Set(requests.map((r) => r.template_id));
+
+        function toggleExpand(id) {
+          setExpanded((e) => ({ ...e, [id]: !e[id] }));
+        }
+
+        async function toggleRequest(template) {
+          // 既に request 済み → 削除
+          const existing = requests.find((r) => r.template_id === template.id);
+          if (existing) {
+            await api(`/documents/requests/${existing.id}`, { method: 'DELETE' });
+          } else {
+            // permanent_or_changed / anytime はピリオド無し
+            const usePeriod =
+              template.frequency_type === 'per_period' ||
+              template.frequency_type === 'past_period_reference';
+            await api('/documents/requests/batch', {
+              method: 'POST',
+              body: JSON.stringify({
+                client_id: client.id,
+                period_id: usePeriod && period ? period.id : null,
+                template_ids: [template.id],
+              }),
+            });
+          }
+          await load();
+        }
+
+        async function selectAllChildren(parent) {
+          setSaving(true);
+          const ids = parent.children.map((c) => c.id).filter((id) => !requestedTemplateIds.has(id));
+          if (ids.length === 0) {
+            setSaving(false);
+            return;
+          }
+          const usePeriod =
+            parent.frequency_type === 'per_period' ||
+            parent.frequency_type === 'past_period_reference';
+          await api('/documents/requests/batch', {
+            method: 'POST',
+            body: JSON.stringify({
+              client_id: client.id,
+              period_id: usePeriod && period ? period.id : null,
+              template_ids: ids,
+            }),
+          });
+          await load();
+          setSaving(false);
+        }
+
+        const freqBadge = (type) => {
+          const labels = {
+            permanent_or_changed: { label: '永続', color: '#319795' },
+            one_time_setup: { label: '設立時', color: '#805ad5' },
+            past_period_reference: { label: '過年度', color: '#d69e2e' },
+            per_period: { label: '当期毎', color: '#1a365d' },
+            anytime: { label: '随時', color: '#718096' },
+          };
+          const conf = labels[type] || { label: type, color: '#718096' };
+          return (
+            <span
+              style={{
+                fontSize: 9,
+                padding: '1px 5px',
+                borderRadius: 3,
+                background: conf.color,
+                color: 'white',
+                marginLeft: 6,
+                verticalAlign: 'middle',
+              }}
+            >
+              {conf.label}
+            </span>
+          );
+        };
+
+        if (!period) {
+          return (
+            <div className="empty-state">
+              まず会計年度を作成してください（上の「+ 新規年度」ボタン）
+            </div>
+          );
+        }
+
+        return (
+          <div className="card">
+            <div style={{ marginBottom: 12, fontSize: 13, color: '#4a5568' }}>
+              必要な書類にチェックすると、客户側にもリアルタイムで反映されます。
+              選択中 <strong>{requests.length}</strong> 件。
+            </div>
+
+            {categories.map((cat) => (
+              <div key={cat.id} style={{ marginBottom: 20 }}>
+                <div
+                  style={{
+                    background: '#f7fafc',
+                    padding: '6px 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#1a365d',
+                    borderLeft: '3px solid #1a365d',
+                    marginBottom: 6,
+                  }}
+                >
+                  {cat.name}
+                </div>
+                {cat.templates.map((t) => {
+                  const isParent = t.children && t.children.length > 0;
+                  const isExpanded = expanded[t.id];
+                  const isRequested = requestedTemplateIds.has(t.id);
+                  const childCount = t.children?.length || 0;
+                  const requestedChildCount = t.children?.filter((c) =>
+                    requestedTemplateIds.has(c.id)
+                  ).length;
+
+                  return (
+                    <div key={t.id} style={{ marginBottom: 4 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '6px 8px',
+                          borderRadius: 4,
+                          background: isParent ? '#fafafa' : 'transparent',
+                          cursor: isParent ? 'pointer' : 'default',
+                        }}
+                      >
+                        {isParent ? (
+                          <>
+                            <span
+                              onClick={() => toggleExpand(t.id)}
+                              style={{ width: 18, cursor: 'pointer', userSelect: 'none' }}
+                            >
+                              {isExpanded ? '▼' : '▶'}
+                            </span>
+                            <span style={{ flex: 1, fontSize: 13 }}>
+                              📁 {t.name}
+                              {freqBadge(t.frequency_type)}
+                              <span style={{ fontSize: 11, color: '#a0aec0', marginLeft: 6 }}>
+                                ({requestedChildCount}/{childCount} 選択)
+                              </span>
+                              {t.applicability_hint && (
+                                <span style={{ fontSize: 11, color: '#a0aec0', marginLeft: 6 }}>
+                                  💡 {t.applicability_hint}
+                                </span>
+                              )}
+                            </span>
+                            <button
+                              className="btn btn-sm btn-secondary"
+                              onClick={() => selectAllChildren(t)}
+                              disabled={saving || requestedChildCount === childCount}
+                            >
+                              {requestedChildCount === childCount ? '全選済' : '一括選択'}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <label
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                cursor: 'pointer',
+                                flex: 1,
+                                fontSize: 13,
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isRequested}
+                                onChange={() => toggleRequest(t)}
+                                style={{ width: 'auto', cursor: 'pointer' }}
+                              />
+                              {t.name}
+                              {freqBadge(t.frequency_type)}
+                              {t.optional && (
+                                <span style={{ fontSize: 10, color: '#a0aec0' }}>(任意)</span>
+                              )}
+                              {t.applicability_hint && (
+                                <span style={{ fontSize: 11, color: '#a0aec0' }}>
+                                  💡 {t.applicability_hint}
+                                </span>
+                              )}
+                            </label>
+                          </>
+                        )}
+                      </div>
+
+                      {isParent && isExpanded && (
+                        <div style={{ marginLeft: 26 }}>
+                          {t.children.map((child) => {
+                            const childRequested = requestedTemplateIds.has(child.id);
+                            return (
+                              <label
+                                key={child.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '4px 8px',
+                                  cursor: 'pointer',
+                                  fontSize: 13,
+                                  borderRadius: 4,
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={childRequested}
+                                  onChange={() => toggleRequest(child)}
+                                  style={{ width: 'auto', cursor: 'pointer' }}
+                                />
+                                {child.name}
+                                {child.optional && (
+                                  <span style={{ fontSize: 10, color: '#a0aec0' }}>(任意)</span>
+                                )}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        );
+      }
+
+      // ====================================================================
+      // 提出状況 Tab - 選択された項目の進捗一覧
+      // ====================================================================
+      function RequestStatusTab({ client, period }) {
+        const [requests, setRequests] = useState([]);
+
+        const load = useCallback(async () => {
+          const data = period
+            ? await api(`/documents/requests?client_id=${client.id}&period_id=${period.id}`)
+            : await api(`/documents/requests?client_id=${client.id}`);
+          setRequests(data.requests);
+        }, [client.id, period?.id]);
+
+        useEffect(() => {
+          load();
+        }, [load]);
+
+        const statusLabel = {
+          requested: { text: '未提出', color: '#a0aec0' },
+          submitted: { text: '提出済', color: '#319795' },
+          reviewed: { text: '確認済', color: '#38a169' },
+          needs_revision: { text: '差し戻し', color: '#c53030' },
+          not_applicable: { text: '該当なし', color: '#718096' },
+          confirmed: { text: '確定', color: '#1a365d' },
+        };
+
+        // Group by category
+        const grouped = {};
+        for (const r of requests) {
+          const key = r.category_code || 'other';
+          if (!grouped[key]) {
+            grouped[key] = { name: r.category_name || 'その他', items: [] };
+          }
+          grouped[key].items.push(r);
+        }
+
+        const summary = {
+          total: requests.length,
+          submitted: requests.filter((r) => ['submitted', 'reviewed', 'confirmed'].includes(r.status))
+            .length,
+          pending: requests.filter((r) => r.status === 'requested').length,
+          na: requests.filter((r) => r.status === 'not_applicable').length,
+        };
+
+        if (requests.length === 0) {
+          return (
+            <div className="empty-state">
+              まだ書類がリクエストされていません。
+              <br />
+              「書類リクエスト」タブから選択してください。
+            </div>
+          );
+        }
+
+        return (
+          <>
+            <div className="summary">
+              <div className="summary-card">
+                <div className="label">リクエスト合計</div>
+                <div className="value">{summary.total}</div>
+              </div>
+              <div className="summary-card positive">
+                <div className="label">提出済</div>
+                <div className="value">{summary.submitted}</div>
+              </div>
+              <div className="summary-card negative">
+                <div className="label">未提出</div>
+                <div className="value">{summary.pending}</div>
+              </div>
+            </div>
+
+            {Object.values(grouped).map((g) => (
+              <div key={g.name} className="card" style={{ padding: 0, marginBottom: 12 }}>
+                <div
+                  style={{
+                    padding: '8px 14px',
+                    background: '#f7fafc',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#1a365d',
+                    borderBottom: '1px solid #e2e8f0',
+                  }}
+                >
+                  {g.name}（{g.items.length} 件）
+                </div>
+                <table>
+                  <tbody>
+                    {g.items.map((r) => {
+                      const s = statusLabel[r.status] || statusLabel.requested;
+                      return (
+                        <tr key={r.id}>
+                          <td style={{ fontSize: 13 }}>
+                            {r.parent_name && (
+                              <span style={{ color: '#a0aec0', marginRight: 4 }}>
+                                {r.parent_name} ▸
+                              </span>
+                            )}
+                            {r.template_name}
+                          </td>
+                          <td style={{ width: 110, textAlign: 'right' }}>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                padding: '3px 8px',
+                                borderRadius: 3,
+                                background: s.color,
+                                color: 'white',
+                              }}
+                            >
+                              {s.text}
+                            </span>
+                          </td>
+                          <td style={{ width: 90, fontSize: 11, color: '#a0aec0', textAlign: 'right' }}>
+                            {Number(r.submission_count) > 0 && `📎 ${r.submission_count}`}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </>
+        );
+      }
+
+      // ====================================================================
+      // 過年度 Tab - placeholder
+      // ====================================================================
+      function ArchiveTab({ periods }) {
+        if (periods.length === 0) {
+          return <div className="empty-state">過年度のデータはまだありません</div>;
+        }
+        return (
+          <div className="card">
+            <h2>過年度一覧</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>年度</th>
+                  <th>期間</th>
+                  <th>ステータス</th>
+                </tr>
+              </thead>
+              <tbody>
+                {periods.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.fiscal_year} 年度</td>
+                    <td>
+                      {p.start_date} ～ {p.end_date}
+                    </td>
+                    <td>{p.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         );
       }
 
@@ -1378,47 +1878,11 @@
           }
         }, []);
 
-        // ─── 瀏覽器歷史同步（上一頁/下一頁ボタン対応）─────────────
-        useEffect(() => {
-          const handlePopState = (e) => {
-            // 戻る/進むボタンが押された時、state を復元
-            setSelectedClient(e.state?.client || null);
-          };
-          window.addEventListener('popstate', handlePopState);
-
-          // 初回ロード時、URL から復元（直接リンク対応）
-          const hash = window.location.hash;
-          if (hash.startsWith('#client=')) {
-            const clientId = hash.replace('#client=', '');
-            // クライアント一覧から該当を取得（user 認証済みのみ）
-            const token = localStorage.getItem('token');
-            if (token) {
-              api('/clients').then((d) => {
-                const c = d.clients.find((c) => c.id === clientId);
-                if (c) setSelectedClient(c);
-              }).catch(() => {});
-            }
-          }
-
-          return () => window.removeEventListener('popstate', handlePopState);
-        }, []);
-
-        function openClient(client) {
-          setSelectedClient(client);
-          window.history.pushState({ client }, '', `#client=${client.id}`);
-        }
-
-        function closeClient() {
-          setSelectedClient(null);
-          window.history.pushState({}, '', window.location.pathname);
-        }
-
         function logout() {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           setUser(null);
           setSelectedClient(null);
-          window.history.pushState({}, '', window.location.pathname);
         }
 
         if (!user) return <AuthScreen onLogin={setUser} />;
@@ -1427,11 +1891,11 @@
             <ClientDetail
               client={selectedClient}
               user={user}
-              onBack={closeClient}
+              onBack={() => setSelectedClient(null)}
               onLogout={logout}
             />
           );
-        return <Dashboard user={user} onSelectClient={openClient} onLogout={logout} />;
+        return <Dashboard user={user} onSelectClient={setSelectedClient} onLogout={logout} />;
       }
 
       ReactDOM.createRoot(document.getElementById('root')).render(<App />);
