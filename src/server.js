@@ -54,7 +54,7 @@ app.use((err, req, res, next) => {
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
   const aiMode = process.env.ANTHROPIC_API_KEY
     ? isEmbeddingEnabled()
       ? '🧠 Claude + RAG (pgvector)'
