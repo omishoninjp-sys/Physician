@@ -10,6 +10,8 @@ import journalRoutes from './routes/journal.js';
 import reportRoutes from './routes/reports.js';
 import bankRoutes from './routes/bank.js';
 import documentRoutes from './routes/documents.js';
+import clientUserRoutes from './routes/clientUsers.js';
+import portalRoutes from './routes/portal.js';
 import { isEmbeddingEnabled } from './services/embedding.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -28,6 +30,13 @@ app.use('/api/journal-entries', journalRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/bank', bankRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/client-users', clientUserRoutes);
+app.use('/api/portal', portalRoutes);
+
+// 客户端 portal URL alias（直接 https://demo/portal で portal.html へ）
+app.get('/portal', (req, res) => {
+  res.sendFile(join(__dirname, '..', 'public', 'portal.html'));
+});
 
 // Health check
 app.get('/api/health', (req, res) => {

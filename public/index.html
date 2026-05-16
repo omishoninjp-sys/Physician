@@ -312,6 +312,43 @@
         margin-bottom: 12px;
         font-size: 13px;
       }
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .modal {
+        background: white;
+        border-radius: 8px;
+        padding: 20px 24px;
+        width: 100%;
+        max-width: 440px;
+        max-height: 90vh;
+        overflow: auto;
+      }
+      .modal h2 {
+        font-size: 16px;
+        color: #1a365d;
+        margin-bottom: 14px;
+      }
+      .field {
+        margin-bottom: 12px;
+      }
+      .field label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 4px;
+        color: #4a5568;
+      }
       .badge {
         display: inline-block;
         padding: 2px 6px;
@@ -615,6 +652,303 @@
       }
 
       // ====================================================================
+      // 客戶帳號管理 section（稅理士端）
+      // ====================================================================
+      function ClientUsersSection({ client }) {
+        const [users, setUsers] = useState([]);
+        const [showCreate, setShowCreate] = useState(false);
+        const [credResult, setCredResult] = useState(null); // {email, password, portal_url}
+        const [collapsed, setCollapsed] = useState(true);
+
+        const load = useCallback(async () => {
+          const data = await api(`/client-users?client_id=${client.id}`);
+          setUsers(data.users);
+        }, [client.id]);
+
+        useEffect(() => {
+          load();
+        }, [load]);
+
+        async function resetPassword(userId) {
+          if (!confirm('パスワードを再生成しますか？')) return;
+          try {
+            const r = await api(`/client-users/${userId}/password`, {
+              method: 'PATCH',
+              body: JSON.stringify({}), // 空 body = 自動生成
+            });
+            const portalUrl = `${window.location.origin}/portal`;
+            const u = users.find((u) => u.id === userId);
+            setCredResult({
+              email: u?.email,
+              password: r.new_password,
+              portal_url: portalUrl,
+              is_reset: true,
+            });
+          } catch (e) {
+            alert(e.message);
+          }
+        }
+
+        return (
+          <div
+            style={{
+              background: 'white',
+              borderRadius: 6,
+              border: '1px solid #e2e8f0',
+              marginBottom: 16,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                padding: '10px 14px',
+                background: '#f7fafc',
+                borderBottom: collapsed ? 'none' : '1px solid #e2e8f0',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: 'pointer',
+              }}
+              onClick={() => setCollapsed(!collapsed)}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#1a365d' }}>
+                {collapsed ? '▶' : '▼'} 客户アカウント
+                <span style={{ fontSize: 11, color: '#a0aec0', marginLeft: 8, fontWeight: 400 }}>
+                  ({users.length} 件)
+                </span>
+              </div>
+              {!collapsed && (
+                <button
+                  className="btn btn-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowCreate(true);
+                  }}
+                >
+                  + アカウント追加
+                </button>
+              )}
+            </div>
+
+            {!collapsed && (
+              <div style={{ padding: '10px 14px' }}>
+                {users.length === 0 ? (
+                  <div style={{ fontSize: 12, color: '#a0aec0', padding: '8px 0' }}>
+                    まだ客户アカウントがありません。「+ アカウント追加」で作成してください。
+                  </div>
+                ) : (
+                  <table style={{ fontSize: 12 }}>
+                    <thead>
+                      <tr>
+                        <th>メール</th>
+                        <th>氏名</th>
+                        <th>役割</th>
+                        <th>最終ログイン</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((u) => (
+                        <tr key={u.id}>
+                          <td>{u.email}</td>
+                          <td>{u.display_name}</td>
+                          <td>{u.role}</td>
+                          <td>
+                            {u.last_login_at
+                              ? new Date(u.last_login_at).toLocaleDateString('ja-JP')
+                              : '未ログイン'}
+                          </td>
+                          <td>
+                            <button
+                              className="btn btn-sm btn-secondary"
+                              onClick={() => resetPassword(u.id)}
+                            >
+                              パスワード再生成
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+
+            {showCreate && (
+              <CreateClientUserModal
+                clientId={client.id}
+                onClose={() => setShowCreate(false)}
+                onCreated={(result) => {
+                  setShowCreate(false);
+                  setCredResult({
+                    email: result.user.email,
+                    password: result.initial_password,
+                    portal_url: `${window.location.origin}/portal`,
+                    is_reset: false,
+                  });
+                  load();
+                }}
+              />
+            )}
+
+            {credResult && (
+              <CredentialResultModal
+                cred={credResult}
+                onClose={() => setCredResult(null)}
+              />
+            )}
+          </div>
+        );
+      }
+
+      function CreateClientUserModal({ clientId, onClose, onCreated }) {
+        const [email, setEmail] = useState('');
+        const [name, setName] = useState('');
+        const [role, setRole] = useState('owner');
+        const [saving, setSaving] = useState(false);
+        const [error, setError] = useState('');
+
+        async function submit(e) {
+          e.preventDefault();
+          setSaving(true);
+          setError('');
+          try {
+            const result = await api('/client-users', {
+              method: 'POST',
+              body: JSON.stringify({
+                client_id: clientId,
+                email,
+                display_name: name,
+                role,
+                // password 不傳 → 自動生成
+              }),
+            });
+            onCreated(result);
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setSaving(false);
+          }
+        }
+
+        return (
+          <div className="modal-overlay" onClick={onClose}>
+            <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+              <h2>+ 客户アカウント追加</h2>
+              {error && <div className="error">{error}</div>}
+              <div className="field">
+                <label>メールアドレス</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="tanaka@example.com"
+                />
+              </div>
+              <div className="field">
+                <label>氏名</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  placeholder="田中太郎"
+                />
+              </div>
+              <div className="field">
+                <label>役割</label>
+                <select value={role} onChange={(e) => setRole(e.target.value)}>
+                  <option value="owner">経営者（最終確認権限）</option>
+                  <option value="accounting_staff">経理担当（日常上傳）</option>
+                  <option value="viewer">閲覧のみ</option>
+                </select>
+              </div>
+              <div style={{ fontSize: 12, color: '#718096', marginBottom: 12 }}>
+                💡 パスワードは自動生成されます。作成後一度だけ表示されるので、客户に LINE 等で送ってください。
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn" disabled={saving} style={{ flex: 1 }}>
+                  {saving ? '作成中...' : '作成'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={onClose}
+                  disabled={saving}
+                >
+                  キャンセル
+                </button>
+              </div>
+            </form>
+          </div>
+        );
+      }
+
+      function CredentialResultModal({ cred, onClose }) {
+        const [copied, setCopied] = useState(false);
+
+        const copyText = `【申告書類 Portal ログイン情報】
+
+URL: ${cred.portal_url}
+メール: ${cred.email}
+パスワード: ${cred.password}
+
+※ このパスワードは初回ログイン後に変更してください`;
+
+        function copy() {
+          navigator.clipboard.writeText(copyText);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }
+
+        return (
+          <div className="modal-overlay">
+            <div className="modal" style={{ maxWidth: 480 }}>
+              <h2 style={{ color: '#276749' }}>
+                ✅ {cred.is_reset ? 'パスワード再生成完了' : '客户アカウント作成完了'}
+              </h2>
+              <div
+                style={{
+                  background: '#fffaf0',
+                  color: '#744210',
+                  padding: 10,
+                  borderRadius: 4,
+                  fontSize: 12,
+                  marginBottom: 14,
+                }}
+              >
+                ⚠️ パスワードは <strong>このページを閉じると二度と表示されません</strong>。
+                必ずコピーして客户に送ってください。
+              </div>
+              <pre
+                style={{
+                  background: '#f7fafc',
+                  padding: 12,
+                  borderRadius: 4,
+                  fontSize: 13,
+                  whiteSpace: 'pre-wrap',
+                  fontFamily: 'monospace',
+                  border: '1px solid #e2e8f0',
+                  marginBottom: 14,
+                }}
+              >
+{copyText}
+              </pre>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn" onClick={copy} style={{ flex: 1 }}>
+                  {copied ? '✓ コピーしました' : '📋 全部コピー'}
+                </button>
+                <button className="btn btn-secondary" onClick={onClose}>
+                  閉じる
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // ====================================================================
       // Client detail - v2 workflow OS
       // ====================================================================
       function ClientDetail({ client, user, onBack, onLogout }) {
@@ -683,6 +1017,8 @@
               <div style={{ fontSize: 12, color: '#718096', marginBottom: 16 }}>
                 {client.industry || '業種未設定'}
               </div>
+
+              <ClientUsersSection client={client} />
 
               {/* 年度選擇器 */}
               <div

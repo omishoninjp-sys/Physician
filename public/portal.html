@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <title>申告書類 Portal</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
+        background: #f7fafc;
+        color: #2d3748;
+        font-size: 15px;
+        line-height: 1.5;
+        min-height: 100vh;
+      }
+      input,
+      button,
+      select {
+        font-family: inherit;
+        font-size: inherit;
+      }
+      input {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid #cbd5e0;
+        border-radius: 6px;
+        background: white;
+      }
+      input:focus {
+        outline: none;
+        border-color: #1a365d;
+        box-shadow: 0 0 0 2px rgba(26, 54, 93, 0.1);
+      }
+      button {
+        cursor: pointer;
+        border: none;
+        font-weight: 600;
+      }
+      .btn {
+        background: #1a365d;
+        color: white;
+        padding: 12px 18px;
+        border-radius: 6px;
+        font-size: 15px;
+      }
+      .btn:hover {
+        background: #2c5282;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .btn-secondary {
+        background: white;
+        color: #4a5568;
+        border: 1px solid #cbd5e0;
+      }
+      .btn-sm {
+        padding: 6px 12px;
+        font-size: 13px;
+      }
+
+      /* Login */
+      .login-wrapper {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .login-card {
+        width: 100%;
+        max-width: 400px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        padding: 32px 28px;
+      }
+      .login-card h1 {
+        font-size: 22px;
+        color: #1a365d;
+        text-align: center;
+        margin-bottom: 4px;
+      }
+      .login-card .subtitle {
+        text-align: center;
+        color: #718096;
+        font-size: 13px;
+        margin-bottom: 28px;
+      }
+      .login-card .field {
+        margin-bottom: 14px;
+      }
+      .login-card label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 6px;
+        color: #4a5568;
+      }
+      .error {
+        background: #fed7d7;
+        color: #c53030;
+        padding: 10px;
+        border-radius: 4px;
+        font-size: 13px;
+        margin-bottom: 14px;
+      }
+
+      /* Dashboard */
+      .header {
+        background: white;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 14px 16px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      .header h1 {
+        font-size: 16px;
+        color: #1a365d;
+        font-weight: 700;
+      }
+      .header .meta {
+        font-size: 11px;
+        color: #718096;
+        margin-top: 2px;
+      }
+      .header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .container {
+        padding: 16px;
+        max-width: 720px;
+        margin: 0 auto;
+      }
+
+      .summary {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      .summary-card {
+        background: white;
+        border-radius: 8px;
+        padding: 12px 8px;
+        text-align: center;
+        border: 1px solid #e2e8f0;
+      }
+      .summary-card .label {
+        font-size: 11px;
+        color: #718096;
+        margin-bottom: 4px;
+      }
+      .summary-card .value {
+        font-size: 22px;
+        font-weight: 700;
+        color: #1a365d;
+      }
+      .summary-card.pending .value {
+        color: #c05621;
+      }
+      .summary-card.done .value {
+        color: #38a169;
+      }
+
+      .category {
+        margin-bottom: 16px;
+      }
+      .category-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: #1a365d;
+        padding: 4px 0;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .req-card {
+        background: white;
+        border-radius: 8px;
+        padding: 14px;
+        margin-bottom: 8px;
+        border: 1px solid #e2e8f0;
+      }
+      .req-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+      }
+      .req-name {
+        flex: 1;
+        font-size: 14px;
+        font-weight: 600;
+        color: #2d3748;
+      }
+      .req-name .parent {
+        color: #a0aec0;
+        font-weight: 400;
+        font-size: 12px;
+      }
+      .req-name .hint {
+        display: block;
+        font-size: 11px;
+        color: #718096;
+        font-weight: 400;
+        margin-top: 4px;
+      }
+      .status {
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .status-requested {
+        background: #fffaf0;
+        color: #c05621;
+      }
+      .status-submitted {
+        background: #e6fffa;
+        color: #285e61;
+      }
+      .status-reviewed {
+        background: #f0fff4;
+        color: #276749;
+      }
+      .status-needs_revision {
+        background: #fed7d7;
+        color: #c53030;
+      }
+      .status-not_applicable {
+        background: #edf2f7;
+        color: #718096;
+      }
+      .status-confirmed {
+        background: #1a365d;
+        color: white;
+      }
+
+      .submissions {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px dashed #e2e8f0;
+      }
+      .sub-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: #4a5568;
+        margin-bottom: 4px;
+      }
+      .sub-item a {
+        color: #1a365d;
+        text-decoration: underline;
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .actions button {
+        flex: 1;
+      }
+
+      /* upload modal */
+      .modal-bg {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 20;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+      }
+      .modal {
+        background: white;
+        border-radius: 12px 12px 0 0;
+        padding: 20px;
+        width: 100%;
+        max-width: 500px;
+        max-height: 80vh;
+        overflow: auto;
+      }
+      .modal h2 {
+        font-size: 16px;
+        color: #1a365d;
+        margin-bottom: 14px;
+      }
+
+      .empty {
+        text-align: center;
+        color: #a0aec0;
+        padding: 40px 20px;
+        font-size: 13px;
+      }
+
+      @media (min-width: 600px) {
+        .modal-bg {
+          align-items: center;
+        }
+        .modal {
+          border-radius: 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel" data-presets="react">
+      const { useState, useEffect, useCallback, useRef } = React;
+
+      const API_BASE = '/api/portal';
+
+      async function api(path, options = {}) {
+        const token = localStorage.getItem('portal_token');
+        const res = await fetch(API_BASE + path, {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(options.headers || {}),
+          },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'API error');
+        return data;
+      }
+
+      // ====================================================================
+      // Login screen
+      // ====================================================================
+      function LoginScreen({ onLogin }) {
+        const [email, setEmail] = useState('');
+        const [password, setPassword] = useState('');
+        const [error, setError] = useState('');
+        const [loading, setLoading] = useState(false);
+
+        async function submit(e) {
+          e?.preventDefault();
+          setError('');
+          setLoading(true);
+          try {
+            const data = await api('/auth/login', {
+              method: 'POST',
+              body: JSON.stringify({ email, password }),
+            });
+            localStorage.setItem('portal_token', data.token);
+            localStorage.setItem('portal_user', JSON.stringify(data.user));
+            onLogin(data.user);
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        return (
+          <div className="login-wrapper">
+            <form className="login-card" onSubmit={submit}>
+              <h1>申告書類 Portal</h1>
+              <div className="subtitle">税理士事務所との書類往来</div>
+              {error && <div className="error">{error}</div>}
+              <div className="field">
+                <label>メールアドレス</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
+              </div>
+              <div className="field">
+                <label>パスワード</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                />
+              </div>
+              <button className="btn" style={{ width: '100%' }} disabled={loading}>
+                {loading ? 'ログイン中...' : 'ログイン'}
+              </button>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: '#a0aec0',
+                  textAlign: 'center',
+                  marginTop: 16,
+                }}
+              >
+                税理士事務所からアカウント情報を受け取ってからログインしてください
+              </div>
+            </form>
+          </div>
+        );
+      }
+
+      // ====================================================================
+      // Dashboard
+      // ====================================================================
+      function Dashboard({ user, onLogout }) {
+        const [requests, setRequests] = useState([]);
+        const [loading, setLoading] = useState(true);
+        const [uploadingFor, setUploadingFor] = useState(null);
+
+        const load = useCallback(async () => {
+          setLoading(true);
+          try {
+            const data = await api('/requests');
+            setRequests(data.requests);
+          } catch (e) {
+            alert(e.message);
+          } finally {
+            setLoading(false);
+          }
+        }, []);
+
+        useEffect(() => {
+          load();
+        }, [load]);
+
+        async function markNotApplicable(reqId) {
+          if (!confirm('該当なし として登録しますか？')) return;
+          try {
+            await api(`/requests/${reqId}/not-applicable`, { method: 'PATCH' });
+            await load();
+          } catch (e) {
+            alert(e.message);
+          }
+        }
+
+        const summary = {
+          total: requests.length,
+          pending: requests.filter((r) => r.status === 'requested').length,
+          done: requests.filter((r) => ['submitted', 'reviewed', 'confirmed'].includes(r.status))
+            .length,
+        };
+
+        // Group by category
+        const grouped = {};
+        for (const r of requests) {
+          const key = r.category_name || 'その他';
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(r);
+        }
+
+        return (
+          <>
+            <div className="header">
+              <div className="header-row">
+                <div>
+                  <h1>{user.client_name}</h1>
+                  <div className="meta">
+                    {user.tenant_name} ／ {user.display_name} 様
+                  </div>
+                </div>
+                <button className="btn btn-sm btn-secondary" onClick={onLogout}>
+                  ログアウト
+                </button>
+              </div>
+            </div>
+
+            <div className="container">
+              {loading ? (
+                <div className="empty">読み込み中...</div>
+              ) : requests.length === 0 ? (
+                <div className="empty">
+                  税理士からまだ書類リクエストがありません
+                  <br />
+                  税理士事務所にお問い合わせください
+                </div>
+              ) : (
+                <>
+                  <div className="summary">
+                    <div className="summary-card">
+                      <div className="label">合計</div>
+                      <div className="value">{summary.total}</div>
+                    </div>
+                    <div className="summary-card pending">
+                      <div className="label">未提出</div>
+                      <div className="value">{summary.pending}</div>
+                    </div>
+                    <div className="summary-card done">
+                      <div className="label">提出済</div>
+                      <div className="value">{summary.done}</div>
+                    </div>
+                  </div>
+
+                  {Object.entries(grouped).map(([cat, items]) => (
+                    <div className="category" key={cat}>
+                      <div className="category-title">{cat}</div>
+                      {items.map((r) => (
+                        <RequestCard
+                          key={r.id}
+                          req={r}
+                          onUpload={() => setUploadingFor(r)}
+                          onNotApplicable={() => markNotApplicable(r.id)}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+
+            {uploadingFor && (
+              <UploadModal
+                request={uploadingFor}
+                onClose={() => setUploadingFor(null)}
+                onUploaded={() => {
+                  setUploadingFor(null);
+                  load();
+                }}
+              />
+            )}
+          </>
+        );
+      }
+
+      function RequestCard({ req, onUpload, onNotApplicable }) {
+        const statusLabel = {
+          requested: '未提出',
+          submitted: '提出済',
+          reviewed: '確認済',
+          needs_revision: '差し戻し',
+          not_applicable: '該当なし',
+          confirmed: '確定',
+        };
+        const canUpload = !['confirmed', 'not_applicable'].includes(req.status);
+        const canMarkNA = req.optional && req.status === 'requested';
+        const subs = req.submissions || [];
+
+        return (
+          <div className="req-card">
+            <div className="req-row">
+              <div className="req-name">
+                {req.parent_name && <span className="parent">{req.parent_name} ／ </span>}
+                {req.template_name}
+                {req.period_year && (
+                  <span style={{ color: '#a0aec0', fontWeight: 400 }}> ({req.period_year}年度)</span>
+                )}
+                {req.applicability_hint && <span className="hint">💡 {req.applicability_hint}</span>}
+              </div>
+              <span className={`status status-${req.status}`}>{statusLabel[req.status]}</span>
+            </div>
+
+            {subs.length > 0 && (
+              <div className="submissions">
+                {subs.map((s) => (
+                  <div className="sub-item" key={s.id}>
+                    📎{' '}
+                    <a
+                      href={`${API_BASE}/submissions/${s.id}/download?token=${localStorage.getItem('portal_token')}`}
+                      target="_blank"
+                    >
+                      {s.file_name}
+                    </a>
+                    <span style={{ color: '#a0aec0' }}>
+                      ({Math.round(s.file_size / 1024)} KB)
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {(canUpload || canMarkNA) && (
+              <div className="actions">
+                {canUpload && (
+                  <button className="btn btn-sm" onClick={onUpload}>
+                    📤 {subs.length > 0 ? '差し替え' : 'アップロード'}
+                  </button>
+                )}
+                {canMarkNA && (
+                  <button className="btn btn-sm btn-secondary" onClick={onNotApplicable}>
+                    該当なし
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      function UploadModal({ request, onClose, onUploaded }) {
+        const [file, setFile] = useState(null);
+        const [uploading, setUploading] = useState(false);
+        const [error, setError] = useState('');
+        const inputRef = useRef(null);
+
+        async function submit() {
+          if (!file) return;
+          setUploading(true);
+          setError('');
+          try {
+            // Read file as base64
+            const reader = new FileReader();
+            const result = await new Promise((resolve, reject) => {
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = () => reject(new Error('ファイル読み込み失敗'));
+              reader.readAsDataURL(file);
+            });
+            const base64 = result.split(',')[1];
+
+            await api(`/requests/${request.id}/submissions`, {
+              method: 'POST',
+              body: JSON.stringify({
+                file_name: file.name,
+                mime_type: file.type,
+                file_content_base64: base64,
+              }),
+            });
+            onUploaded();
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setUploading(false);
+          }
+        }
+
+        return (
+          <div className="modal-bg" onClick={onClose}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <h2>📤 {request.template_name}</h2>
+              {error && <div className="error">{error}</div>}
+              <div style={{ fontSize: 13, color: '#718096', marginBottom: 14 }}>
+                PDF / 画像 / Excel / Word など、10MB まで
+              </div>
+              <input
+                ref={inputRef}
+                type="file"
+                onChange={(e) => setFile(e.target.files[0])}
+                style={{ marginBottom: 14, padding: 8 }}
+              />
+              {file && (
+                <div style={{ fontSize: 13, color: '#4a5568', marginBottom: 14 }}>
+                  選択中: <strong>{file.name}</strong>（{Math.round(file.size / 1024)} KB）
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn"
+                  onClick={submit}
+                  disabled={!file || uploading}
+                  style={{ flex: 1 }}
+                >
+                  {uploading ? 'アップロード中...' : 'アップロード'}
+                </button>
+                <button className="btn btn-secondary" onClick={onClose}>
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // ====================================================================
+      // App root
+      // ====================================================================
+      function App() {
+        const [user, setUser] = useState(null);
+
+        useEffect(() => {
+          const token = localStorage.getItem('portal_token');
+          const cached = localStorage.getItem('portal_user');
+          if (token && cached) {
+            try {
+              setUser(JSON.parse(cached));
+            } catch (e) {}
+          }
+        }, []);
+
+        function logout() {
+          localStorage.removeItem('portal_token');
+          localStorage.removeItem('portal_user');
+          setUser(null);
+        }
+
+        if (!user) return <LoginScreen onLogin={setUser} />;
+        return <Dashboard user={user} onLogout={logout} />;
+      }
+
+      ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+  </body>
+</html>
