@@ -195,7 +195,7 @@ CREATE POLICY tenant_isolation_client_users ON client_users
 GRANT SELECT, INSERT, UPDATE ON document_categories TO app_user;
 GRANT SELECT, INSERT, UPDATE ON document_templates TO app_user;
 GRANT SELECT, INSERT, UPDATE ON periods TO app_user;
-GRANT SELECT, INSERT, UPDATE ON document_requests TO app_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON document_requests TO app_user;
 GRANT SELECT, INSERT, UPDATE ON document_submissions TO app_user;
 GRANT SELECT, INSERT, UPDATE ON confirmations TO app_user;
 GRANT SELECT, INSERT, UPDATE ON client_users TO app_user;
