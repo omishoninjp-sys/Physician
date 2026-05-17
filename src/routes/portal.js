@@ -101,6 +101,7 @@ router.get('/requests', async (req, res) => {
       const { rows } = await db.query(
         `SELECT
            dr.id, dr.template_id, dr.status, dr.notes,
+           dr.revision_note, dr.reviewed_at,
            dr.requested_at, dr.updated_at,
            t.code as template_code, t.name as template_name,
            t.parent_id, t.frequency_type, t.optional, t.applicability_hint,
@@ -156,12 +157,17 @@ router.post('/requests/:id/submissions', async (req, res) => {
 
   try {
     const result = await withTenant(req.clientUser.tenant_id, async (db) => {
+      // 状態チェック：lock 済みは拒否
       const { rows: reqCheck } = await db.query(
-        `SELECT id FROM document_requests WHERE id = $1 AND client_id = $2`,
+        `SELECT id, status FROM document_requests WHERE id = $1 AND client_id = $2`,
         [req.params.id, req.clientUser.client_id]
       );
       if (reqCheck.length === 0) throw new Error('該当 request 無し');
+      if (reqCheck[0].status === 'reviewed' || reqCheck[0].status === 'confirmed') {
+        throw new Error('税理士の確認が完了しているため、新規アップロードはできません');
+      }
 
+      // 新 submission を作成
       const { rows } = await db.query(
         `INSERT INTO document_submissions
          (tenant_id, request_id, file_url, file_name, file_size, mime_type, file_hash,
@@ -179,7 +185,17 @@ router.post('/requests/:id/submissions', async (req, res) => {
           req.clientUser.id,
         ]
       );
+      const newSubmissionId = rows[0].id;
 
+      // 既存 submissions を supersede（差し替え扱い）
+      await db.query(
+        `UPDATE document_submissions
+         SET superseded_by = $1
+         WHERE request_id = $2 AND id != $1 AND superseded_by IS NULL`,
+        [newSubmissionId, req.params.id]
+      );
+
+      // 状態を submitted に（needs_revision からも復帰）
       await db.query(
         `UPDATE document_requests SET status = 'submitted', updated_at = NOW()
          WHERE id = $1`,

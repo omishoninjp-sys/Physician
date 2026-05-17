@@ -549,18 +549,24 @@
       function RequestCard({ req, onUpload, onNotApplicable }) {
         const statusLabel = {
           requested: '未提出',
-          submitted: '提出済',
-          reviewed: '確認済',
-          needs_revision: '差し戻し',
+          submitted: '確認待ち',
+          reviewed: '✓ 確認済み',
+          needs_revision: '⚠️ 差し戻し',
           not_applicable: '該当なし',
-          confirmed: '確定',
+          confirmed: '🔒 確定',
         };
-        const canUpload = !['confirmed', 'not_applicable'].includes(req.status);
+        // lock 済み（reviewed / confirmed）はアップロード不可
+        const isLocked = ['reviewed', 'confirmed'].includes(req.status);
+        const canUpload = !isLocked && req.status !== 'not_applicable';
         const canMarkNA = req.optional && req.status === 'requested';
         const subs = req.submissions || [];
+        const needsRevision = req.status === 'needs_revision';
 
         return (
-          <div className="req-card">
+          <div
+            className="req-card"
+            style={needsRevision ? { borderColor: '#c53030', borderWidth: 2 } : undefined}
+          >
             <div className="req-row">
               <div className="req-name">
                 {req.parent_name && <span className="parent">{req.parent_name} ／ </span>}
@@ -572,6 +578,25 @@
               </div>
               <span className={`status status-${req.status}`}>{statusLabel[req.status]}</span>
             </div>
+
+            {needsRevision && req.revision_note && (
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: 10,
+                  background: '#fff5f5',
+                  borderLeft: '3px solid #c53030',
+                  borderRadius: 4,
+                  fontSize: 13,
+                }}
+              >
+                <strong style={{ color: '#c53030' }}>税理士からのコメント：</strong>
+                <div style={{ marginTop: 4, color: '#4a5568' }}>{req.revision_note}</div>
+                <div style={{ marginTop: 6, fontSize: 11, color: '#a0aec0' }}>
+                  ↓ ファイルを差し替えて再アップロードしてください
+                </div>
+              </div>
+            )}
 
             {subs.length > 0 && (
               <div className="submissions">
@@ -589,10 +614,30 @@
               </div>
             )}
 
+            {isLocked && (
+              <div
+                style={{
+                  marginTop: 10,
+                  fontSize: 12,
+                  color: '#1a365d',
+                  background: '#edf2f7',
+                  padding: 8,
+                  borderRadius: 4,
+                  textAlign: 'center',
+                }}
+              >
+                🔒 税理士の確認が完了したため変更できません
+              </div>
+            )}
+
             {(canUpload || canMarkNA) && (
               <div className="actions">
                 {canUpload && (
-                  <button className="btn btn-sm" onClick={onUpload}>
+                  <button
+                    className="btn btn-sm"
+                    onClick={onUpload}
+                    style={needsRevision ? { background: '#c05621' } : undefined}
+                  >
                     📤 {subs.length > 0 ? '差し替え' : 'アップロード'}
                   </button>
                 )}

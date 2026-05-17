@@ -140,6 +140,7 @@ router.get('/requests', async (req, res) => {
       let sql = `
         SELECT
           dr.id, dr.template_id, dr.status, dr.required, dr.notes,
+          dr.revision_note, dr.reviewed_at,
           dr.requested_at, dr.updated_at,
           t.code AS template_code, t.name AS template_name,
           t.parent_id, t.frequency_type, t.optional, t.applicability_hint,
@@ -179,6 +180,90 @@ router.get('/requests', async (req, res) => {
   } catch (e) {
     console.error('List requests error:', e);
     res.status(500).json({ error: '請求一覧取得失敗' });
+  }
+});
+
+/**
+ * POST /api/documents/requests/:id/review
+ * 稅理士のレビュー：OK or 差し戻し
+ * Body: { action: 'approve' | 'reject', revision_note? }
+ */
+router.post('/requests/:id/review', auditLog('REVIEW', 'document_request'), async (req, res) => {
+  const { action, revision_note } = req.body;
+  if (!['approve', 'reject'].includes(action)) {
+    return res.status(400).json({ error: 'action は approve または reject' });
+  }
+  if (action === 'reject' && !revision_note?.trim()) {
+    return res.status(400).json({ error: '差し戻しには理由が必要です' });
+  }
+
+  const newStatus = action === 'approve' ? 'reviewed' : 'needs_revision';
+
+  try {
+    const result = await withTenant(req.user.tenant_id, async (db) => {
+      const { rows } = await db.query(
+        `UPDATE document_requests
+         SET status = $1,
+             revision_note = $2,
+             reviewed_at = NOW(),
+             reviewed_by_user_id = $3,
+             updated_at = NOW()
+         WHERE id = $4
+         RETURNING id, status, revision_note, reviewed_at`,
+        [
+          newStatus,
+          action === 'reject' ? revision_note : null,
+          req.user.id,
+          req.params.id,
+        ]
+      );
+      return rows[0];
+    });
+    if (!result) return res.status(404).json({ error: '該当無し' });
+    req.audit.entityId = result.id;
+    req.audit.changes = { action, new_status: newStatus, revision_note: result.revision_note };
+    res.json({ request: result });
+  } catch (e) {
+    console.error('Review error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * POST /api/documents/requests/:id/unlock
+ * Approved (reviewed) 状態を解除（誤承認時の back door）
+ * 状態を submitted に戻す（過去 submission 残っていれば）or requested
+ */
+router.post('/requests/:id/unlock', auditLog('UNLOCK', 'document_request'), async (req, res) => {
+  try {
+    const result = await withTenant(req.user.tenant_id, async (db) => {
+      const { rows } = await db.query(
+        `UPDATE document_requests
+         SET status = CASE
+                       WHEN EXISTS (SELECT 1 FROM document_submissions
+                                    WHERE request_id = document_requests.id
+                                      AND superseded_by IS NULL)
+                       THEN 'submitted'
+                       ELSE 'requested'
+                     END,
+             reviewed_at = NULL,
+             reviewed_by_user_id = NULL,
+             revision_note = NULL,
+             updated_at = NOW()
+         WHERE id = $1 AND status = 'reviewed'
+         RETURNING id, status`,
+        [req.params.id]
+      );
+      return rows[0];
+    });
+    if (!result) {
+      return res.status(400).json({ error: '確認済み状態でない、または該当無し' });
+    }
+    req.audit.entityId = result.id;
+    req.audit.changes = { unlocked: true, new_status: result.status };
+    res.json({ request: result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
