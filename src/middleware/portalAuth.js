@@ -7,7 +7,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
  * 税理士 JWT とは別 type で発行、相互利用不可
  */
 export function portalAuthenticate(req, res, next) {
-  const token = req.headers.authorization?.replace(/^Bearer\s+/, '');
+  const token =
+    req.headers.authorization?.replace(/^Bearer\s+/, '') || req.query.token;
   if (!token) return res.status(401).json({ error: 'ログインが必要です' });
 
   try {

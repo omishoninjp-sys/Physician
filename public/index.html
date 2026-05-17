@@ -1439,8 +1439,35 @@ URL: ${cred.portal_url}
                               </span>
                             )}
                             {r.template_name}
+                            {r.submissions && r.submissions.length > 0 && (
+                              <div style={{ marginTop: 6 }}>
+                                {r.submissions.map((s) => (
+                                  <div key={s.id} style={{ fontSize: 11, marginTop: 2 }}>
+                                    📎{' '}
+                                    <a
+                                      href={`/api/documents/submissions/${s.id}/download?token=${localStorage.getItem('token')}`}
+                                      target="_blank"
+                                      rel="noopener"
+                                      style={{ color: '#1a365d', textDecoration: 'underline' }}
+                                    >
+                                      {s.file_name}
+                                    </a>
+                                    <span style={{ color: '#a0aec0', marginLeft: 6 }}>
+                                      ({Math.round(s.file_size / 1024)} KB ・{' '}
+                                      {new Date(s.uploaded_at).toLocaleString('ja-JP', {
+                                        month: 'numeric',
+                                        day: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      })}
+                                      )
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </td>
-                          <td style={{ width: 110, textAlign: 'right' }}>
+                          <td style={{ width: 110, textAlign: 'right', verticalAlign: 'top' }}>
                             <span
                               style={{
                                 fontSize: 11,
@@ -1452,9 +1479,6 @@ URL: ${cred.portal_url}
                             >
                               {s.text}
                             </span>
-                          </td>
-                          <td style={{ width: 90, fontSize: 11, color: '#a0aec0', textAlign: 'right' }}>
-                            {Number(r.submission_count) > 0 && `📎 ${r.submission_count}`}
                           </td>
                         </tr>
                       );

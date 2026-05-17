@@ -146,7 +146,17 @@ router.get('/requests', async (req, res) => {
           parent_t.name AS parent_name,
           c.code AS category_code, c.name AS category_name,
           (SELECT COUNT(*) FROM document_submissions ds
-           WHERE ds.request_id = dr.id AND ds.superseded_by IS NULL) AS submission_count
+           WHERE ds.request_id = dr.id AND ds.superseded_by IS NULL) AS submission_count,
+          (SELECT json_agg(json_build_object(
+             'id', ds.id,
+             'file_name', ds.file_name,
+             'file_size', ds.file_size,
+             'mime_type', ds.mime_type,
+             'uploaded_at', ds.uploaded_at,
+             'uploaded_via', ds.uploaded_via
+           ) ORDER BY ds.uploaded_at DESC)
+           FROM document_submissions ds
+           WHERE ds.request_id = dr.id AND ds.superseded_by IS NULL) AS submissions
         FROM document_requests dr
         JOIN document_templates t ON t.id = dr.template_id
         LEFT JOIN document_templates parent_t ON parent_t.id = t.parent_id
@@ -169,6 +179,42 @@ router.get('/requests', async (req, res) => {
   } catch (e) {
     console.error('List requests error:', e);
     res.status(500).json({ error: '請求一覧取得失敗' });
+  }
+});
+
+/**
+ * GET /api/documents/submissions/:id/download
+ * 税理士がアップロードされたファイルを閲覧/ダウンロード
+ */
+router.get('/submissions/:id/download', async (req, res) => {
+  try {
+    const result = await withTenant(req.user.tenant_id, async (db) => {
+      const { rows } = await db.query(
+        `SELECT file_url, file_name, mime_type
+         FROM document_submissions
+         WHERE id = $1`,
+        [req.params.id]
+      );
+      return rows[0];
+    });
+    if (!result) return res.status(404).send('Not found');
+
+    const match = result.file_url.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) {
+      // 既に R2 URL の場合は redirect
+      return res.redirect(result.file_url);
+    }
+
+    const buffer = Buffer.from(match[2], 'base64');
+    res.setHeader('Content-Type', match[1]);
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename*=UTF-8''${encodeURIComponent(result.file_name)}`
+    );
+    res.send(buffer);
+  } catch (e) {
+    console.error('Download error:', e);
+    res.status(500).send(e.message);
   }
 });
 
