@@ -257,15 +257,23 @@
       }
       .sub-item {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: 8px;
         font-size: 12px;
         color: #4a5568;
-        margin-bottom: 4px;
+        margin-bottom: 6px;
       }
       .sub-item a {
         color: #1a365d;
         text-decoration: underline;
+        flex: 1;
+        min-width: 0;
+        word-break: break-all;
+      }
+      .sub-item .sub-size {
+        color: #a0aec0;
+        white-space: nowrap;
+        flex-shrink: 0;
       }
 
       .actions {
@@ -569,16 +577,13 @@
               <div className="submissions">
                 {subs.map((s) => (
                   <div className="sub-item" key={s.id}>
-                    📎{' '}
                     <a
                       href={`${API_BASE}/submissions/${s.id}/download?token=${localStorage.getItem('portal_token')}`}
                       target="_blank"
                     >
-                      {s.file_name}
+                      📎 {s.file_name}
                     </a>
-                    <span style={{ color: '#a0aec0' }}>
-                      ({Math.round(s.file_size / 1024)} KB)
-                    </span>
+                    <span className="sub-size">{Math.round(s.file_size / 1024)} KB</span>
                   </div>
                 ))}
               </div>

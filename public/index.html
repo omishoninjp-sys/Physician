@@ -1442,25 +1442,44 @@ URL: ${cred.portal_url}
                             {r.submissions && r.submissions.length > 0 && (
                               <div style={{ marginTop: 6 }}>
                                 {r.submissions.map((s) => (
-                                  <div key={s.id} style={{ fontSize: 11, marginTop: 2 }}>
-                                    📎{' '}
+                                  <div
+                                    key={s.id}
+                                    style={{
+                                      fontSize: 11,
+                                      marginTop: 2,
+                                      display: 'flex',
+                                      alignItems: 'flex-start',
+                                      gap: 6,
+                                    }}
+                                  >
                                     <a
                                       href={`/api/documents/submissions/${s.id}/download?token=${localStorage.getItem('token')}`}
                                       target="_blank"
                                       rel="noopener"
-                                      style={{ color: '#1a365d', textDecoration: 'underline' }}
+                                      style={{
+                                        color: '#1a365d',
+                                        textDecoration: 'underline',
+                                        flex: 1,
+                                        minWidth: 0,
+                                        wordBreak: 'break-all',
+                                      }}
                                     >
-                                      {s.file_name}
+                                      📎 {s.file_name}
                                     </a>
-                                    <span style={{ color: '#a0aec0', marginLeft: 6 }}>
-                                      ({Math.round(s.file_size / 1024)} KB ・{' '}
+                                    <span
+                                      style={{
+                                        color: '#a0aec0',
+                                        whiteSpace: 'nowrap',
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      {Math.round(s.file_size / 1024)} KB ・{' '}
                                       {new Date(s.uploaded_at).toLocaleString('ja-JP', {
                                         month: 'numeric',
                                         day: 'numeric',
                                         hour: '2-digit',
                                         minute: '2-digit',
                                       })}
-                                      )
                                     </span>
                                   </div>
                                 ))}
